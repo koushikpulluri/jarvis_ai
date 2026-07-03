@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' blob:; worker-src 'self' blob:; media-src 'self' blob:;">
+  <title>Jarvis AI</title>
+  <style>
+    /* ── Minimal dark theme — full UI design in Phase 2 ── */
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0a0a0f;
+      color: #e0e0e0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      overflow: hidden;
+    }
+
+    .container {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 32px;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 300;
+      letter-spacing: 12px;
+      text-transform: uppercase;
+      color: #00d4ff;
+      text-shadow: 0 0 30px rgba(0, 212, 255, 0.3);
+    }
+
+    /* ── Status orb ── */
+    .status-orb {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #00d4ff 0%, #0066aa 70%, transparent 100%);
+      box-shadow: 0 0 40px rgba(0, 212, 255, 0.3), inset 0 0 20px rgba(0, 212, 255, 0.2);
+      animation: pulse 3s ease-in-out infinite;
+    }
+
+    .status-orb.listening {
+      background: radial-gradient(circle, #ff4444 0%, #aa0000 70%, transparent 100%);
+      box-shadow: 0 0 40px rgba(255, 68, 68, 0.4), inset 0 0 20px rgba(255, 68, 68, 0.2);
+      animation: pulse 1s ease-in-out infinite;
+    }
+
+    .status-orb.thinking {
+      background: radial-gradient(circle, #ffaa00 0%, #aa6600 70%, transparent 100%);
+      box-shadow: 0 0 40px rgba(255, 170, 0, 0.4), inset 0 0 20px rgba(255, 170, 0, 0.2);
+      animation: spin 1.5s linear infinite;
+    }
+
+    .status-orb.speaking {
+      background: radial-gradient(circle, #00ff88 0%, #00aa44 70%, transparent 100%);
+      box-shadow: 0 0 40px rgba(0, 255, 136, 0.4), inset 0 0 20px rgba(0, 255, 136, 0.2);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .status-orb.error {
+      background: radial-gradient(circle, #ff2222 0%, #880000 70%, transparent 100%);
+      box-shadow: 0 0 40px rgba(255, 34, 34, 0.5), inset 0 0 20px rgba(255, 34, 34, 0.3);
+      animation: flash 0.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.08); opacity: 1; }
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg) scale(1); }
+      50% { transform: rotate(180deg) scale(1.05); }
+      100% { transform: rotate(360deg) scale(1); }
+    }
+
+    @keyframes flash {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .status-label {
+      font-size: 0.95rem;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: #888;
+      min-height: 1.2em;
+    }
+
+    /* ── Conversation area ── */
+    .conversation {
+      width: 90%;
+      max-width: 600px;
+      min-height: 120px;
+      max-height: 200px;
+      overflow-y: auto;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      font-size: 0.85rem;
+      color: #aaa;
+      text-align: left;
+    }
+
+    .conversation .msg {
+      margin-bottom: 8px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .conversation .msg.user {
+      background: rgba(0, 212, 255, 0.08);
+      border-left: 2px solid #00d4ff;
+    }
+
+    .conversation .msg.assistant {
+      background: rgba(0, 255, 136, 0.06);
+      border-left: 2px solid #00ff88;
+    }
+
+    .conversation .msg.error-msg {
+      background: rgba(255, 68, 68, 0.08);
+      border-left: 2px solid #ff4444;
+      color: #ff8888;
+    }
+
+    .conversation .msg.metrics {
+      background: rgba(255, 255, 255, 0.02);
+      border-left: 2px solid #555;
+      color: #666;
+      font-size: 0.75rem;
+      font-family: 'Consolas', 'Courier New', monospace;
+    }
+
+    .conversation .msg.warning-msg {
+      background: rgba(255, 170, 0, 0.08);
+      border-left: 2px solid #ffaa00;
+      color: #ffcc66;
+    }
+
+    /* ── Controls ── */
+    .controls {
+      display: flex;
+      gap: 16px;
+    }
+
+    button {
+      padding: 12px 32px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      color: #e0e0e0;
+      font-size: 0.9rem;
+      font-weight: 500;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    button:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    button:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    button.start {
+      border-color: rgba(0, 212, 255, 0.3);
+      color: #00d4ff;
+    }
+
+    button.start:hover:not(:disabled) {
+      background: rgba(0, 212, 255, 0.1);
+      box-shadow: 0 0 20px rgba(0, 212, 255, 0.15);
+    }
+
+    button.stop {
+      border-color: rgba(255, 68, 68, 0.3);
+      color: #ff4444;
+    }
+
+    button.stop:hover:not(:disabled) {
+      background: rgba(255, 68, 68, 0.1);
+      box-shadow: 0 0 20px rgba(255, 68, 68, 0.15);
+    }
+
+    button.skip {
+      border-color: rgba(0, 255, 136, 0.3);
+      color: #00ff88;
+      display: none;
+    }
+
+    button.skip:hover:not(:disabled) {
+      background: rgba(0, 255, 136, 0.1);
+      box-shadow: 0 0 20px rgba(0, 255, 136, 0.15);
+    }
+
+    button.skip.visible {
+      display: inline-flex;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      position: absolute;
+      bottom: 16px;
+      font-size: 0.7rem;
+      color: #444;
+      letter-spacing: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Jarvis</h1>
+
+    <div id="statusOrb" class="status-orb"></div>
+    <div id="statusLabel" class="status-label">READY</div>
+
+    <div id="conversation" class="conversation">
+      <!-- Messages will be appended here -->
+    </div>
+
+    <div class="controls">
+      <button id="btnStart" class="start">Start Listening</button>
+      <button id="btnStop" class="stop" disabled>Stop Listening</button>
+      <button id="btnSkip" class="skip">Skip Speech</button>
+    </div>
+  </div>
+
+  <div class="footer">VERSION 1.1 — JARVIS AI</div>
+
+  <!-- ── Audio Recorder module (must load before inline script) ── -->
+  <script src="js/audio-recorder.js"></script>
+
+  <script>
+    // ──────────────────────────────────────────────
+    // DOM references
+    // ──────────────────────────────────────────────
+
+    const statusOrb = document.getElementById('statusOrb');
+    const statusLabel = document.getElementById('statusLabel');
+    const btnStart = document.getElementById('btnStart');
+    const btnStop = document.getElementById('btnStop');
+    const btnSkip = document.getElementById('btnSkip');
+    const conversationEl = document.getElementById('conversation');
+
+    // ──────────────────────────────────────────────
+    // Audio recorder and playback state
+    // ──────────────────────────────────────────────
+
+    const recorder = new AudioRecorder();
+    let recordingInterval = null;
+    let recordingStartTime = null;
+    let durationWarningShown = false;
+    let currentAudio = null; // Reference to current TTS Audio object for skip functionality
+
+    // ──────────────────────────────────────────────
+    // State mappings
+    // ──────────────────────────────────────────────
+
+    const STATE_LABELS = {
+      IDLE: 'READY',
+      LISTENING: 'LISTENING...',
+      THINKING: 'THINKING...',
+      SPEAKING: 'SPEAKING...',
+      ERROR: 'ERROR',
+    };
+
+    const STATE_CLASSES = {
+      IDLE: '',
+      LISTENING: 'listening',
+      THINKING: 'thinking',
+      SPEAKING: 'speaking',
+      ERROR: 'error',
+    };
+
+    // ──────────────────────────────────────────────
+    // UI update functions
+    // ──────────────────────────────────────────────
+
+    function updateUI(state) {
+      statusOrb.className = 'status-orb';
+      if (STATE_CLASSES[state]) {
+        statusOrb.classList.add(STATE_CLASSES[state]);
+      }
+      statusLabel.textContent = STATE_LABELS[state] || state;
+      btnStart.disabled = state !== 'IDLE';
+      btnStop.disabled = state !== 'LISTENING';
+
+      // Skip button: visible only during SPEAKING
+      if (state === 'SPEAKING') {
+        btnSkip.classList.add('visible');
+      } else {
+        btnSkip.classList.remove('visible');
+      }
+
+      console.log(`[UI] Button states updated: Start=${!btnStart.disabled} | Stop=${!btnStop.disabled} | Skip=${state === 'SPEAKING'}`);
+    }
+
+    function addMessage(text, role) {
+      const msg = document.createElement('div');
+      let cssClass;
+      let prefix;
+      switch (role) {
+        case 'error':
+          cssClass = 'error-msg';
+          prefix = '⚠️ Error';
+          break;
+        case 'warning':
+          cssClass = 'warning-msg';
+          prefix = '⏳';
+          break;
+        case 'metrics':
+          cssClass = 'metrics';
+          prefix = '📊';
+          break;
+        case 'user':
+          cssClass = 'user';
+          prefix = '🎤 You';
+          break;
+        default:
+          cssClass = 'assistant';
+          prefix = '🤖 Jarvis';
+      }
+      msg.className = `msg ${cssClass}`;
+      msg.textContent = `${prefix}: ${text}`;
+      conversationEl.appendChild(msg);
+      conversationEl.scrollTop = conversationEl.scrollHeight;
+    }
+
+    // ──────────────────────────────────────────────
+    // Event listeners from main process
+    // ──────────────────────────────────────────────
+
+    let activeAssistantMsgEl = null;
+
+    window.jarvis.onStateChange(({ state }) => {
+      console.log(`[UI] State changed event received: ${state}`);
+      updateUI(state);
+      if (state !== 'LISTENING' && recordingInterval) {
+        clearInterval(recordingInterval);
+        recordingInterval = null;
+      }
+      // Reset active assistant streaming message if state leaves THINKING/SPEAKING
+      if (state !== 'THINKING' && state !== 'SPEAKING') {
+        activeAssistantMsgEl = null;
+      }
+    });
+
+    window.jarvis.onUserMessage(({ text }) => {
+      console.log(`[UI] User message event received: "${text}"`);
+      addMessage(text, 'user');
+    });
+
+    window.jarvis.onAssistantToken((token) => {
+      // If we don't have an active message bubble yet, create one
+      if (!activeAssistantMsgEl) {
+        console.log('[UI] First assistant token received. Starting stream bubble.');
+        activeAssistantMsgEl = document.createElement('div');
+        activeAssistantMsgEl.className = 'msg assistant';
+        activeAssistantMsgEl.textContent = '🤖 Jarvis: ';
+        conversationEl.appendChild(activeAssistantMsgEl);
+      }
+      activeAssistantMsgEl.textContent += token;
+      conversationEl.scrollTop = conversationEl.scrollHeight;
+    });
+
+    window.jarvis.onAssistantMessage(({ text }) => {
+      console.log(`[UI] Complete assistant message received: "${text.trim().replace(/\s+/g, ' ')}"`);
+      // Finalize and sync the message content
+      if (activeAssistantMsgEl) {
+        activeAssistantMsgEl.textContent = `🤖 Jarvis: ${text}`;
+        activeAssistantMsgEl = null;
+      } else {
+        addMessage(text, 'assistant');
+      }
+    });
+
+    window.jarvis.onError(({ message }) => {
+      console.error(`[UI] Error event received: "${message}"`);
+      activeAssistantMsgEl = null;
+      addMessage(message, 'error');
+    });
+
+    window.jarvis.onPipelineMetrics((metrics) => {
+      console.log('[UI] Pipeline metrics received:', metrics);
+      const parts = [`Recording: ${metrics.recordingTime}s`, `STT: ${metrics.sttTime}s`, `LLM: ${metrics.llmTime}s`];
+      if (metrics.ttsTime !== null && metrics.ttsTime !== undefined) {
+        parts.push(`TTS: ${metrics.ttsTime}s`);
+      } else if (metrics.ttsSkipped) {
+        parts.push('TTS: skipped');
+      }
+      parts.push(`Total: ${metrics.totalTime}s`);
+      addMessage(parts.join(' | '), 'metrics');
+    });
+
+    // ──────────────────────────────────────────────
+    // Button handlers — real microphone recording
+    // ──────────────────────────────────────────────
+
+    btnStart.addEventListener('click', async () => {
+      console.log('[UI] Start Listening button clicked');
+      try {
+        // Transition state to LISTENING
+        const result = await window.jarvis.startListening();
+        if (!result.ok) {
+          console.warn('[UI] startListening call rejected:', result.error);
+          addMessage(result.error, 'error');
+          return;
+        }
+
+        // Set up duration warning handler (does NOT stop recording)
+        durationWarningShown = false;
+        recorder.onDurationWarning = () => {
+          if (!durationWarningShown) {
+            durationWarningShown = true;
+            addMessage(
+              'This recording is becoming very long and may take additional processing time. Click Stop Listening whenever you are finished.',
+              'warning'
+            );
+          }
+        };
+
+        // Start the microphone recorder
+        console.log('[UI] Recorder start requested');
+        await recorder.start();
+        console.log('[UI] Recorder start completed successfully');
+        recordingStartTime = Date.now();
+
+        // Show elapsed time (counts up instead of counting down)
+        let recordingSeconds = 0;
+        if (recordingInterval) clearInterval(recordingInterval);
+        statusLabel.textContent = 'LISTENING (0s)';
+        recordingInterval = setInterval(() => {
+          recordingSeconds++;
+          statusLabel.textContent = `LISTENING (${recordingSeconds}s)`;
+        }, 1000);
+      } catch (err) {
+        console.error('[UI] Failed to start recording:', err);
+        addMessage(err.message, 'error');
+        // Cancel — transition back to IDLE
+        await window.jarvis.stopListening(null);
+      }
+    });
+
+    btnStop.addEventListener('click', async () => {
+      console.log('[UI] Stop Listening button clicked');
+      try {
+        // Calculate actual recording duration before stopping
+        const durationSec = recordingStartTime
+          ? parseFloat(((Date.now() - recordingStartTime) / 1000).toFixed(1))
+          : 0;
+
+        // Stop recording and get the WAV buffer
+        console.log('[UI] Recorder stop requested');
+        const wavBuffer = await recorder.stop();
+
+        // Clear the elapsed timer
+        if (recordingInterval) {
+          clearInterval(recordingInterval);
+          recordingInterval = null;
+        }
+        recordingStartTime = null;
+
+        if (!wavBuffer) {
+          console.warn('[UI] Recorder returned empty WAV buffer');
+          await window.jarvis.stopListening(null);
+          return;
+        }
+
+        const sizeKB = (wavBuffer.byteLength / 1024).toFixed(1);
+        console.log(`[UI] Recorder stop completed. WAV buffer ready: ${sizeKB} KB (${durationSec}s)`);
+
+        // Send WAV to main process for transcription, with recording metadata
+        const result = await window.jarvis.stopListening(wavBuffer, { durationSec });
+        if (!result.ok) {
+          console.error('[UI] Pipeline execution failed:', result.error);
+        }
+      } catch (err) {
+        console.error('[UI] Failed to stop recording:', err);
+        addMessage(`Recording error: ${err.message}`, 'error');
+        if (recordingInterval) {
+          clearInterval(recordingInterval);
+          recordingInterval = null;
+        }
+        recordingStartTime = null;
+        await window.jarvis.stopListening(null);
+      }
+    });
+
+    // ──────────────────────────────────────────────
+    // Audio playback (for future TTS integration)
+    // ──────────────────────────────────────────────
+
+    window.jarvis.onPlayAudio((buffer) => {
+      try {
+        // Stop any currently playing audio
+        if (currentAudio) {
+          currentAudio.pause();
+          currentAudio = null;
+        }
+
+        const blob = new Blob([buffer], { type: 'audio/wav' });
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        currentAudio = audio;
+
+        audio.onended = () => {
+          URL.revokeObjectURL(url);
+          currentAudio = null;
+          window.jarvis.notifyPlaybackEnded({ reason: 'finished' });
+        };
+
+        audio.onerror = (e) => {
+          console.error('[UI] Playback error:', e);
+          URL.revokeObjectURL(url);
+          currentAudio = null;
+          window.jarvis.notifyPlaybackEnded({ reason: 'error', message: 'Audio playback failed' });
+        };
+
+        audio.play().catch((err) => {
+          console.error('[UI] Failed to play audio:', err);
+          URL.revokeObjectURL(url);
+          currentAudio = null;
+          window.jarvis.notifyPlaybackEnded({ reason: 'error', message: err.message });
+        });
+      } catch (err) {
+        console.error('[UI] Failed to play audio:', err);
+        currentAudio = null;
+        window.jarvis.notifyPlaybackEnded({ reason: 'error', message: err.message });
+      }
+    });
+
+    // ──────────────────────────────────────────────
+    // Skip speech button handler
+    // ──────────────────────────────────────────────
+
+    btnSkip.addEventListener('click', async () => {
+      console.log('[UI] Skip Speech button clicked');
+      // Stop the currently playing audio
+      if (currentAudio) {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+        const url = currentAudio.src;
+        currentAudio = null;
+        if (url) URL.revokeObjectURL(url);
+      }
+      // Notify main process
+      await window.jarvis.skipSpeech();
+    });
+
+    // ──────────────────────────────────────────────
+    // Initialization
+    // ──────────────────────────────────────────────
+
+    (async () => {
+      const state = await window.jarvis.getState();
+      updateUI(state);
+
+      const info = await window.jarvis.getAppInfo();
+      console.log(`${info.name} v${info.version} (Phase ${info.phase})`);
+      console.log('Services:', JSON.stringify(info.services));
+    })();
+  </script>
+</body>
+</html>

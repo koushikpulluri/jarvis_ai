@@ -1,0 +1,8 @@
+# Jarvis AI — Faster-Whisper Server Dependencies
+#
+# Install with: pip install -r requirements.txt
+
+faster-whisper
+fastapi
+uvicorn
+python-multipart

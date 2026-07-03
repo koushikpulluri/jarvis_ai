@@ -1,0 +1,7 @@
+# Jarvis AI — Piper TTS Server Dependencies
+#
+# Install with: pip install -r requirements.txt
+
+piper-tts
+fastapi
+uvicorn
